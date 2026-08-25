@@ -298,8 +298,15 @@ export function SurveyForm({ surveyorName }: { surveyorName: string }) {
       setOsmRawName(null);
       uploadedRef.current = null;
       clientUuid.current = crypto.randomUUID();
-    } catch {
-      setError("Сүлжээнд холбогдож чадсангүй. Дахин оролдоно уу.");
+    } catch (cause) {
+      // Доод давхаргын мессежийг ХАДГАЛНА. Бүгдийг "сүлжээ тасарсан" гэж
+      // нэгтгэвэл алба хаагч ч, админ ч жинхэнэ шалтгааныг мэдэхгүй үлдэнэ.
+      console.error("[survey] илгээж чадсангүй:", cause);
+      setError(
+        cause instanceof Error && cause.message
+          ? cause.message
+          : "Илгээж чадсангүй. Сүлжээгээ шалгаад дахин оролдоно уу.",
+      );
     } finally {
       setBusy(null);
     }

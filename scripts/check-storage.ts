@@ -12,6 +12,7 @@ import {
   PutObjectCommand,
   S3ServiceException,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { config } from "dotenv";
 
 config({ path: ".env.local", quiet: true });
@@ -93,7 +94,49 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // 3. Цэвэрлэх
+  /*
+   * 3. CORS — браузерын preflight-ыг дуурайлгана.
+   *
+   * Энэ шалгалт байгаагийн шалтгаан: локал MinIO нь CORS-ыг анхныхаараа
+   * нээлттэй байлгадаг тул зөрүү нь зөвхөн бодит R2 дээр илэрдэг. Тохиргоог
+   * уншихад bucket-ийн admin эрх хэрэгтэй ч preflight илгээхэд эрх
+   * шаардлагагүй — тиймээс энэ нь ажиллах баталгаатай арга.
+   */
+  const probeUrl = await getSignedUrl(
+    s3,
+    new PutObjectCommand({
+      Bucket,
+      Key: "cors-probe/probe.jpg",
+      ContentType: "image/jpeg",
+      ContentLength: 1,
+    }),
+    { expiresIn: 60, signableHeaders: new Set(["content-type", "content-length"]) },
+  );
+
+  const origin = process.env.APP_ORIGIN ?? "http://localhost:3100";
+  const preflight = await fetch(probeUrl, {
+    method: "OPTIONS",
+    headers: {
+      Origin: origin,
+      "Access-Control-Request-Method": "PUT",
+      "Access-Control-Request-Headers": "content-type",
+    },
+  }).catch(() => null);
+
+  if (preflight?.headers.get("access-control-allow-origin")) {
+    console.log(`  ✓ CORS (${origin} → PUT зөвшөөрөгдсөн)`);
+  } else if (isLocal) {
+    console.log("  • CORS шалгалт алгасав (MinIO анхныхаараа нээлттэй)");
+  } else {
+    console.error(`  ❌ CORS: ${origin} гарал үүслээс PUT хийх боломжгүй`);
+    console.error("     → Bucket → Settings → CORS Policy дээр дараахыг нэмнэ үү:");
+    console.error(`     [{"AllowedOrigins":["${origin}"],"AllowedMethods":["PUT","GET"],`);
+    console.error('      "AllowedHeaders":["content-type"],"MaxAgeSeconds":3600}]');
+    console.error("     (Энэ дүрэмгүйгээр браузер зураг хуулах хүсэлтийг хаана.)");
+    process.exit(1);
+  }
+
+  // 4. Цэвэрлэх
   await s3.send(new DeleteObjectCommand({ Bucket, Key: key }));
   console.log("  ✓ устгах эрх (шалгалтын файл цэвэрлэгдлээ)");
 

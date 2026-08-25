@@ -115,13 +115,35 @@ export async function uploadPhoto(
   const { upload_url: uploadUrl, r2_key: r2Key, public_url: publicUrl } =
     await grant.json();
 
-  const put = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "content-type": prepared.contentType },
-    body: prepared.blob,
-  });
+  /*
+   * Энэ `fetch` нь ӨӨР гарал үүсэл рүү (R2) явдаг тул CORS дүрэм байхгүй
+   * бол браузер хүсэлтийг явуулахаасаа өмнө хааж, `fetch` нь алдаа ШИДНЭ
+   * (хариу буцаахгүй). Тэр тохиолдлыг "сүлжээ тасарсан" гэж нэгтгэвэл
+   * жинхэнэ шалтгаан нуугдана — production дээр яг тэр болсон.
+   */
+  let put: Response;
+  try {
+    put = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "content-type": prepared.contentType },
+      body: prepared.blob,
+    });
+  } catch (cause) {
+    console.error("[upload] R2 руу хандаж чадсангүй:", cause);
+    throw new Error(
+      "Зургийн сервер рүү холбогдож чадсангүй. Сүлжээгээ шалгана уу — " +
+        "давтагдвал системийн админд мэдэгдэнэ үү (CORS тохиргоо).",
+    );
+  }
+
   if (!put.ok) {
-    throw new Error(`Зураг хуулахад алдаа гарлаа (${put.status}).`);
+    const detail = await put.text().catch(() => "");
+    console.error("[upload] R2 татгалзлаа:", put.status, detail.slice(0, 300));
+    throw new Error(
+      put.status === 403
+        ? "Зураг хуулах зөвшөөрөл хүчингүй болсон байна. Дахин оролдоно уу."
+        : `Зураг хуулахад алдаа гарлаа (${put.status}).`,
+    );
   }
 
   return { r2Key, publicUrl };
