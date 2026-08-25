@@ -17,6 +17,7 @@ import { getDb } from "@/db";
 import { hotelSurveys, surveyPhotos } from "@/db/schema";
 import { writeAudit } from "@/lib/auth/audit";
 import { getClientIp, getSession } from "@/lib/auth/request";
+import { checkActorRate } from "@/lib/auth/throttle";
 import { MAX_PHOTOS, MIN_PHOTOS } from "@/lib/photos/constants";
 import { normalizeName } from "@/lib/surveys/normalize";
 import { checkQuality } from "@/lib/surveys/quality";
@@ -81,6 +82,27 @@ export async function POST(request: Request) {
     );
   }
   const input = parsed.data;
+
+  /*
+   * §10-ийн хязгаар. Энэ нь халдлагаас гэхээсээ илүү эвдэрсэн клиентээс
+   * хамгаална: сүлжээ тасалдахад давтан илгээх давталтад орсон утас
+   * секундэд олон хүсэлт явуулж, R2 болон DB-г дэмий эзэлж мэднэ.
+   * (`client_uuid` нь давхар МӨР үүсэхээс сэргийлдэг ч хүсэлт өөрөө
+   * сервер рүү хүрсээр байна.)
+   */
+  const allowed = await checkActorRate({
+    actorId: session.sub,
+    action: "survey.created",
+    limit: 20,
+    windowSeconds: 60,
+  });
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Хэт олон бүртгэл илгээлээ. Түр хүлээнэ үү." },
+      { status: 429, headers: { "Retry-After": "60" } },
+    );
+  }
+
   const db = getDb();
 
   /*
