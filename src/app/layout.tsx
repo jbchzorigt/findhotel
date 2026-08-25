@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+import { ServiceWorkerRegistrar } from "@/components/ServiceWorkerRegistrar";
 import { SplashScreen } from "@/components/SplashScreen";
 
 const geistSans = Geist({
@@ -41,6 +42,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             товч дарах бүрт давтагдахгүй. */}
         <SplashScreen />
         {children}
+        <ServiceWorkerRegistrar />
       </body>
     </html>
   );
