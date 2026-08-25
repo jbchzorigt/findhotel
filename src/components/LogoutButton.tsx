@@ -17,9 +17,9 @@ export function LogoutButton() {
         router.replace("/login");
         router.refresh();
       }}
-      className="text-sm text-slate-500 underline"
+      className="rounded-lg border border-red-300 bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-700 transition-colors active:bg-red-100 disabled:opacity-60"
     >
-      Гарах
+      {busy ? "Гарч байна…" : "Гарах"}
     </button>
   );
 }
