@@ -5,12 +5,13 @@
  * схемтэй тааруулсан — өөр байвал үүсгэсэн данс нэвтэрч чадахгүй байх
  * төөрөгдөл үүснэ. Нууц үг зөвхөн hash хэлбэрээр хадгалагдана.
  */
-import { asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getDb } from "@/db";
 import { surveyors } from "@/db/schema";
+import { listSurveyors } from "@/lib/admin/surveyors";
 import { requireAdmin } from "@/lib/auth/admin";
 import { writeAudit } from "@/lib/auth/audit";
 import { hashPassword } from "@/lib/auth/password";
@@ -24,31 +25,7 @@ export async function GET() {
   if (!guard.ok) {
     return NextResponse.json({ error: guard.error }, { status: guard.status });
   }
-
-  const rows = await getDb()
-    .select({
-      id: surveyors.id,
-      badgeNumber: surveyors.badgeNumber,
-      fullName: surveyors.fullName,
-      unit: surveyors.unit,
-      role: surveyors.role,
-      isActive: surveyors.isActive,
-      createdAt: surveyors.createdAt,
-    })
-    .from(surveyors)
-    .orderBy(asc(surveyors.badgeNumber));
-
-  return NextResponse.json({
-    surveyors: rows.map((row) => ({
-      id: row.id,
-      badge_number: row.badgeNumber,
-      full_name: row.fullName,
-      unit: row.unit,
-      role: row.role,
-      is_active: row.isActive,
-      created_at: row.createdAt.toISOString(),
-    })),
-  });
+  return NextResponse.json({ surveyors: await listSurveyors() });
 }
 
 const CreateSchema = z.object({

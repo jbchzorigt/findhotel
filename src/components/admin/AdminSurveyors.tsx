@@ -19,6 +19,8 @@ type Surveyor = {
   unit: string | null;
   role: "SURVEYOR" | "ADMIN";
   is_active: boolean;
+  /** Устгаагүй бүртгэлийн тоо. */
+  survey_count: number;
 };
 
 const MIN_PASSWORD = 8;
@@ -309,17 +311,35 @@ export function AdminSurveyors({
             key={person.id}
             className="rounded-xl border border-slate-200 bg-white p-3"
           >
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="font-mono text-sm">{person.badge_number}</span>
+            {/* 1-р мөр: badge дугаар ба хийсэн бүртгэлийн тоо */}
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="font-mono text-sm text-slate-600">
+                {person.badge_number}
+              </span>
+              <span className="text-sm text-slate-500">
+                Нийт:{" "}
+                <span className="font-semibold text-slate-700">
+                  {person.survey_count}
+                </span>
+              </span>
+            </div>
+
+            {/* 2-р мөр: нэр, эрх, идэвхтэй эсэх */}
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="font-medium">{person.full_name}</span>
+              <span
+                className={`rounded px-2 py-0.5 text-xs font-medium ${
+                  person.role === "ADMIN"
+                    ? "bg-slate-800 text-white"
+                    : "bg-slate-200 text-slate-700"
+                }`}
+              >
+                {person.role === "ADMIN" ? "админ" : "алба хаагч"}
+              </span>
               {person.unit ? (
                 <span className="text-sm text-slate-500">{person.unit}</span>
               ) : null}
-              {person.role === "ADMIN" ? (
-                <span className="rounded bg-slate-200 px-2 py-0.5 text-xs font-medium">
-                  админ
-                </span>
-              ) : null}
+
               <div className="ml-auto">
                 <ActiveToggle
                   active={person.is_active}
@@ -336,7 +356,7 @@ export function AdminSurveyors({
               </div>
             </div>
 
-            <div className="mt-2 flex flex-wrap gap-2">
+            <div className="mt-3 border-t border-slate-100 pt-3">
               <button
                 type="button"
                 onClick={() => {
