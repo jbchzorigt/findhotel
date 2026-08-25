@@ -89,10 +89,46 @@ function RestoreIcon() {
   );
 }
 
+/**
+ * Байршил хэрхэн тогтоогдсоныг хүн уншихаар илэрхийлнэ.
+ *
+ * Түүхий enum (`OSM_POI`, `MAP_PIN`) нь схемийн нэр — админд юу ч хэлэхгүй.
+ * Харин "автоматаар орсон уу, гараар бичсэн үү" гэдэг нь чанарын шууд
+ * дохио: автоматаар орсон нэр, координат нь албан ёсны эх сурвалжаас ирсэн
+ * тул алдах магадлал бага.
+ */
+const LOCATION_SOURCE: Record<string, { label: string; auto: boolean }> = {
+  OSM_POI: { label: "OSM-ээс автоматаар", auto: true },
+  GPS: { label: "GPS-ээр, нэрийг гараар", auto: false },
+  MAP_PIN: { label: "Газрын зураг дээр гараар", auto: false },
+  MAPS_LINK: { label: "Линкээс", auto: false },
+};
+
+function SourceBadge({
+  source,
+  osmRef,
+}: {
+  source: string;
+  osmRef: string | null;
+}) {
+  const info = LOCATION_SOURCE[source] ?? { label: source, auto: false };
+  return (
+    <span
+      title={osmRef ? `OSM объект: ${osmRef}` : undefined}
+      className={`rounded px-2 py-0.5 text-xs font-medium ${
+        info.auto ? "bg-sky-100 text-sky-800" : "bg-slate-100 text-slate-600"
+      }`}
+    >
+      {info.auto ? "◆ " : "✎ "}
+      {info.label}
+    </span>
+  );
+}
+
 /** Шошготой жижиг мэдээлэл — "утга" нь тайлбаргүй бол уншигдахгүй. */
 function Meta({ label, value }: { label: string; value: string }) {
   return (
-    <span className="whitespace-nowrap">
+    <span>
       <span className="text-slate-400">{label}:</span>{" "}
       <span className="text-slate-600">{value}</span>
     </span>
@@ -256,14 +292,13 @@ export function AdminSurveys({ surveyors }: { surveyors: Surveyor[] }) {
                       устгасан
                     </span>
                   ) : null}
+                  <SourceBadge
+                    source={survey.location_source}
+                    osmRef={survey.osm_ref}
+                  />
                 </div>
 
                 <p className="mt-0.5 text-slate-700">{survey.phone}</p>
-                {survey.address_text ? (
-                  <p className="text-sm text-slate-500">
-                    {survey.address_text}
-                  </p>
-                ) : null}
                 {survey.note ? (
                   <p className="mt-1 text-sm text-slate-500">✎ {survey.note}</p>
                 ) : null}
@@ -274,19 +309,19 @@ export function AdminSurveys({ surveyors }: { surveyors: Surveyor[] }) {
                   юуг илэрхийлж байгаа нь ойлгомжгүй байсан. Шошготой
                   болгосон. */}
               <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-2 text-xs">
-                <Meta label="Алба хаагч" value={survey.surveyor.badge} />
+                {/* Хаяг байхгүй бол координатыг харуулна — хоосон
+                    үлдээвэл админ энэ мөрийг алдаа гэж эндүүрнэ. */}
                 <Meta
                   label="Байршил"
                   value={
-                    survey.location_source +
-                    (survey.accuracy_m !== null
-                      ? ` ±${survey.accuracy_m}м`
-                      : "")
+                    survey.address_text ??
+                    `${survey.lat.toFixed(5)}, ${survey.lng.toFixed(5)}`
                   }
                 />
-                {survey.osm_ref ? (
-                  <Meta label="OSM" value={survey.osm_ref} />
+                {survey.accuracy_m !== null ? (
+                  <Meta label="Нарийвчлал" value={`±${survey.accuracy_m}м`} />
                 ) : null}
+                <Meta label="Алба хаагч" value={survey.surveyor.badge} />
                 <Meta
                   label="Бүртгэсэн"
                   value={formatDateTime(survey.created_at)}
