@@ -1,8 +1,13 @@
 @import "tailwindcss";
 
+/*
+ * Талбарын апп — гадаа, нарны гэрэлд, нэг гараар ашиглагдана.
+ * Тиймээс өнгөний ялгарал өндөр, товч том, харанхуй горим байхгүй:
+ * гэрэл багатай сэдэв нь нарны дор уншигдахгүй.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
 }
 
 @theme inline {
@@ -12,15 +17,27 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/*
+ * Газрын зургийн тэмдэглэгээ. Leaflet-ийн үндсэн тэмдэглэгээ нь зургийн файл
+ * татдаг ба bundler-ийн зам эвдэрдэг тул CSS-ээр зурав.
+ */
+.hfs-pin {
+  width: 22px;
+  height: 22px;
+  border-radius: 9999px;
+  background: #2563eb;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.35);
+}
+
+/* Гар утсан дээр input руу орох бүрт браузер томруулахаас сэргийлнэ. */
+input,
+select,
+textarea {
+  font-size: 16px;
 }
