@@ -131,8 +131,15 @@ export const hotelSurveys = pgTable(
     uniqueIndex("hotel_survey_client_uuid_key").on(t.clientUuid),
     check("hotel_survey_lat_range", sql`${t.lat} BETWEEN -90 AND 90`),
     check("hotel_survey_lng_range", sql`${t.lng} BETWEEN -180 AND 180`),
-    // Монголын гар утасны дугаар: 8 орон, 7/8/9-өөр эхэлнэ.
-    check("hotel_survey_phone_format", sql`${t.phone} ~ '^[7-9][0-9]{7}$'`),
+    /*
+     * 8 оронтой дугаар — эхний цифрт хязгаар тавихгүй.
+     *
+     * Эхлээд гар утасны 7/8/9-өөр эхлэх дүрэм тавьсан боловч зочид буудлууд
+     * ихэвчлэн суурин утсаа самбар дээрээ бичдэг (7011-хххх гэх мэт). Тэр
+     * дугаарыг татгалзвал алба хаагч бодит мэдээллийг бүртгэж чадахгүй
+     * болно — хамгаалалт нь ашгаасаа илүү хор хүргэнэ.
+     */
+    check("hotel_survey_phone_format", sql`${t.phone} ~ '^[0-9]{8}$'`),
     check(
       "hotel_survey_accuracy_sane",
       sql`${t.locationAccuracyM} IS NULL OR ${t.locationAccuracyM} BETWEEN 0 AND 100000`,

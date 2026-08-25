@@ -11,7 +11,7 @@ import { z } from "zod";
 
 import { getDb } from "@/db";
 import { surveyors } from "@/db/schema";
-import { generateTemporaryPassword, requireAdmin } from "@/lib/auth/admin";
+import { requireAdmin } from "@/lib/auth/admin";
 import { writeAudit } from "@/lib/auth/audit";
 import { hashPassword } from "@/lib/auth/password";
 import { getClientIp } from "@/lib/auth/request";
@@ -21,7 +21,8 @@ export const dynamic = "force-dynamic";
 
 const PatchSchema = z.object({
   is_active: z.boolean().optional(),
-  reset_password: z.boolean().optional(),
+  /** Шинэ нууц үг — админ өөрөө тогтооно. */
+  password: z.string().min(8).max(64).optional(),
 });
 
 export async function PATCH(
@@ -49,12 +50,10 @@ export async function PATCH(
   }
 
   const values: Record<string, unknown> = { updatedAt: new Date() };
-  let temporaryPassword: string | undefined;
 
   if (input.is_active !== undefined) values.isActive = input.is_active;
-  if (input.reset_password) {
-    temporaryPassword = generateTemporaryPassword();
-    values.passwordHash = await hashPassword(temporaryPassword);
+  if (input.password) {
+    values.passwordHash = await hashPassword(input.password);
   }
 
   const [updated] = await getDb()
@@ -73,17 +72,11 @@ export async function PATCH(
 
   await writeAudit({
     actorId: guard.session.sub,
-    action: temporaryPassword
-      ? "surveyor.password_reset"
-      : "surveyor.updated",
+    action: input.password ? "surveyor.password_reset" : "surveyor.updated",
     subjectId: id,
     ip: await getClientIp(),
     detail: { badge: updated.badgeNumber, isActive: updated.isActive },
   });
 
-  return NextResponse.json({
-    id: updated.id,
-    is_active: updated.isActive,
-    ...(temporaryPassword ? { temporary_password: temporaryPassword } : {}),
-  });
+  return NextResponse.json({ id: updated.id, is_active: updated.isActive });
 }

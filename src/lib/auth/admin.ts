@@ -23,19 +23,3 @@ export async function requireAdmin(): Promise<AdminGuard> {
   }
   return { ok: true, session };
 }
-
-/**
- * Түр нууц үг үүсгэх.
- *
- * Админ өөрөө нууц үг сонговол богино, таамаглахад хялбар үг сонгох магадлал
- * өндөр. Систем үүсгэсэн санамсаргүй үг нь тэрийг хаана — админ түүнийг
- * алба хаагчид дамжуулж, эхний нэвтрэлтийн дараа солиулна.
- *
- * Андуурч уншихад хялбар тэмдэгт (0/O, 1/l/I) хассан: энэ нь ярианаар эсвэл
- * цаасан дээр дамжуулагддаг.
- */
-export function generateTemporaryPassword(): string {
-  const alphabet = "abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(16));
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
-}

@@ -56,7 +56,7 @@ type UploadedPhoto = {
   exif_taken_at: string | null;
 };
 
-const PHONE_PATTERN = /^[7-9][0-9]{7}$/;
+const PHONE_PATTERN = /^[0-9]{8}$/;
 
 export function SurveyForm({ surveyorName }: { surveyorName: string }) {
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
@@ -485,7 +485,7 @@ export function SurveyForm({ surveyorName }: { surveyorName: string }) {
           />
           {phone.length > 0 && !PHONE_PATTERN.test(phone) ? (
             <p className="mt-1 text-xs text-red-600">
-              8 оронтой, 7/8/9-өөр эхэлсэн дугаар байх ёстой.
+              Утасны дугаар 8 оронтой байх ёстой.
             </p>
           ) : null}
         </div>

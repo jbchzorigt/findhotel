@@ -1,9 +1,9 @@
 /**
  * Админ — алба хаагчийн жагсаалт ба шинээр нэмэх.
  *
- * Нууц үгийг СИСТЕМ үүсгэнэ, админ сонгохгүй. Админ өөрөө бодвол богино,
- * таамаглахад хялбар үг сонгох магадлал өндөр — бүх данс нэг хүний зуршлаас
- * хамаарах нь эмзэг. Үүссэн нууц үг НЭГ л удаа хариуд буцна.
+ * Нууц үгийг админ өөрөө тогтооно. Хамгийн богино урт (8) нь нэвтрэлтийн
+ * схемтэй тааруулсан — өөр байвал үүсгэсэн данс нэвтэрч чадахгүй байх
+ * төөрөгдөл үүснэ. Нууц үг зөвхөн hash хэлбэрээр хадгалагдана.
  */
 import { asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -11,7 +11,7 @@ import { z } from "zod";
 
 import { getDb } from "@/db";
 import { surveyors } from "@/db/schema";
-import { generateTemporaryPassword, requireAdmin } from "@/lib/auth/admin";
+import { requireAdmin } from "@/lib/auth/admin";
 import { writeAudit } from "@/lib/auth/audit";
 import { hashPassword } from "@/lib/auth/password";
 import { getClientIp } from "@/lib/auth/request";
@@ -56,6 +56,8 @@ const CreateSchema = z.object({
   full_name: z.string().trim().min(2).max(160),
   unit: z.string().trim().max(120).nullable().optional(),
   role: z.enum(["SURVEYOR", "ADMIN"]).default("SURVEYOR"),
+  // Урт нь нэвтрэлтийн схемтэй ижил байх ёстой (login route).
+  password: z.string().min(8).max(64),
 });
 
 export async function POST(request: Request) {
@@ -67,7 +69,11 @@ export async function POST(request: Request) {
   const parsed = CreateSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Badge дугаар болон нэрээ бүрэн бөглөнө үү." },
+      {
+        error:
+          "Badge дугаар, нэр, нууц үгээ бүрэн бөглөнө үү " +
+          "(нууц үг 8–64 тэмдэгт).",
+      },
       { status: 400 },
     );
   }
@@ -86,7 +92,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const temporaryPassword = generateTemporaryPassword();
   const [created] = await db
     .insert(surveyors)
     .values({
@@ -94,7 +99,7 @@ export async function POST(request: Request) {
       fullName: input.full_name,
       unit: input.unit ?? null,
       role: input.role,
-      passwordHash: await hashPassword(temporaryPassword),
+      passwordHash: await hashPassword(input.password),
     })
     .returning({ id: surveyors.id });
 
@@ -106,13 +111,9 @@ export async function POST(request: Request) {
     detail: { badge: input.badge_number, role: input.role },
   });
 
+  // Нууц үгийг буцаахгүй — админ өөрөө оруулсан тул аль хэдийн мэдэж байгаа.
   return NextResponse.json(
-    {
-      id: created!.id,
-      badge_number: input.badge_number,
-      // НЭГ л удаа буцна — DB-д зөвхөн hash хадгалагдана.
-      temporary_password: temporaryPassword,
-    },
+    { id: created!.id, badge_number: input.badge_number },
     { status: 201 },
   );
 }

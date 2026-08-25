@@ -39,8 +39,9 @@ const PhotoSchema = z.object({
 const CreateSchema = z.object({
   client_uuid: z.string().uuid(),
   name: z.string().trim().min(2).max(200),
-  // Монголын гар утас: 8 орон, 7/8/9-өөр эхэлнэ. DB дээр ч ижил CHECK бий.
-  phone: z.string().regex(/^[7-9][0-9]{7}$/, "Утасны дугаар буруу байна."),
+  // 8 орон, эхний цифрт хязгааргүй (суурин утас ч бүртгэгдэнэ).
+  // DB дээр ч ижил CHECK бий.
+  phone: z.string().regex(/^[0-9]{8}$/, "Утасны дугаар 8 оронтой байх ёстой."),
   address_text: z.string().trim().max(500).nullable().optional(),
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),

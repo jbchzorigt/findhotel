@@ -1,0 +1,2 @@
+ALTER TABLE "hotel_survey" DROP CONSTRAINT "hotel_survey_phone_format";--> statement-breakpoint
+ALTER TABLE "hotel_survey" ADD CONSTRAINT "hotel_survey_phone_format" CHECK ("hotel_survey"."phone" ~ '^[0-9]{8}$');

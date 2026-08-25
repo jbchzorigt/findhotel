@@ -3,11 +3,14 @@
 /**
  * Алба хаагчийн удирдлага.
  *
- * Нууц үг НЭГ л удаа харагдана — DB-д зөвхөн hash хадгалагдана. Тиймээс
- * админ түүнийг тэр дороо хуулж авах ёстой. Дахин харах арга байхгүй,
- * зөвхөн шинээр сэргээх.
+ * Нууц үгийг АДМИН өөрөө тогтооно — систем үүсгэхгүй. Ингэснээр админ
+ * алба хаагчид шууд амаар хэлж өгөх боломжтой, "нэг л удаа харагдах"
+ * утгыг хуулж авахаа мартах эрсдэлгүй.
+ *
+ * Нууц үг DB-д зөвхөн hash хэлбэрээр очно — энд ч, серверийн хариуд ч
+ * задгайгаар хадгалагдахгүй.
  */
-import { useCallback, useState } from "react";
+import { useState } from "react";
 
 type Surveyor = {
   id: string;
@@ -18,38 +21,79 @@ type Surveyor = {
   is_active: boolean;
 };
 
-/**
- * Эхний өгөгдлийг СЕРВЕР дамжуулна (`initial`). Ингэснээр:
- *   - ачаалалтын анивчилт байхгүй
- *   - нэг HTTP хүсэлт хэмнэгдэнэ
- *   - effect дотор setState дуудах шаардлагагүй (React 19 үүнийг
- *     "cascading render" гэж зөв шүүмжилдэг)
- * Дахин уншилт зөвхөн ХЭРЭГЛЭГЧИЙН үйлдлийн дараа хийгдэнэ.
- */
+const MIN_PASSWORD = 8;
+
+function KeyIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden
+    >
+      <circle cx="8" cy="15" r="4" />
+      <path d="M10.9 12.1 21 2M17 6l3 3M15 8l2 2" />
+    </svg>
+  );
+}
+
+function PowerIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden
+    >
+      <path d="M12 3v9" />
+      <path d="M5.6 7.6a9 9 0 1 0 12.8 0" />
+    </svg>
+  );
+}
+
 export function AdminSurveyors({ initial }: { initial: Surveyor[] }) {
   const [people, setPeople] = useState<Surveyor[]>(initial);
   const [error, setError] = useState<string | null>(null);
-  const [secret, setSecret] = useState<{ badge: string; password: string } | null>(
-    null,
-  );
+  const [notice, setNotice] = useState<string | null>(null);
 
+  // Шинэ алба хаагчийн маягт
   const [badge, setBadge] = useState("");
   const [fullName, setFullName] = useState("");
   const [unit, setUnit] = useState("");
   const [role, setRole] = useState<"SURVEYOR" | "ADMIN">("SURVEYOR");
+  const [password, setPassword] = useState("");
+  const [passwordAgain, setPasswordAgain] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
+  // Нууц үг солих мөр нээгдсэн хэрэглэгч
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordAgain, setNewPasswordAgain] = useState("");
+
+  async function reload() {
     const response = await fetch("/api/admin/surveyors");
     const body = await response.json();
     if (response.ok) setPeople(body.surveyors);
-    else setError(body.error ?? "Уншиж чадсангүй.");
-  }, []);
+  }
 
   async function create(event: React.FormEvent) {
     event.preventDefault();
-    setBusy(true);
     setError(null);
+    setNotice(null);
+
+    if (password !== passwordAgain) {
+      setError("Нууц үг таарахгүй байна.");
+      return;
+    }
+    setBusy(true);
     try {
       const response = await fetch("/api/admin/surveyors", {
         method: "POST",
@@ -59,6 +103,7 @@ export function AdminSurveyors({ initial }: { initial: Surveyor[] }) {
           full_name: fullName.trim(),
           unit: unit.trim() || null,
           role,
+          password,
         }),
       });
       const body = await response.json();
@@ -66,17 +111,21 @@ export function AdminSurveyors({ initial }: { initial: Surveyor[] }) {
         setError(body.error ?? "Үүсгэж чадсангүй.");
         return;
       }
-      setSecret({ badge: body.badge_number, password: body.temporary_password });
+      setNotice(`"${badge.trim()}" нэмэгдлээ.`);
       setBadge("");
       setFullName("");
       setUnit("");
-      void load();
+      setPassword("");
+      setPasswordAgain("");
+      await reload();
     } finally {
       setBusy(false);
     }
   }
 
   async function patch(id: string, payload: Record<string, unknown>) {
+    setError(null);
+    setNotice(null);
     const response = await fetch(`/api/admin/surveyors/${id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -85,135 +134,235 @@ export function AdminSurveyors({ initial }: { initial: Surveyor[] }) {
     const body = await response.json();
     if (!response.ok) {
       setError(body.error ?? "Өөрчилж чадсангүй.");
+      return false;
+    }
+    await reload();
+    return true;
+  }
+
+  async function savePassword(person: Surveyor) {
+    if (newPassword !== newPasswordAgain) {
+      setError("Нууц үг таарахгүй байна.");
       return;
     }
-    if (body.temporary_password) {
-      const person = people.find((item) => item.id === id);
-      setSecret({
-        badge: person?.badge_number ?? "",
-        password: body.temporary_password,
-      });
+    if (newPassword.length < MIN_PASSWORD) {
+      setError(`Нууц үг доод тал нь ${MIN_PASSWORD} тэмдэгт байх ёстой.`);
+      return;
     }
-    void load();
+    const ok = await patch(person.id, { password: newPassword });
+    if (ok) {
+      setNotice(`"${person.badge_number}" — нууц үг солигдлоо.`);
+      setEditingId(null);
+      setNewPassword("");
+      setNewPasswordAgain("");
+    }
   }
+
+  const canCreate =
+    badge.trim().length >= 2 &&
+    fullName.trim().length >= 2 &&
+    password.length >= MIN_PASSWORD &&
+    password === passwordAgain &&
+    !busy;
+
+  const field =
+    "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5";
 
   return (
     <div className="space-y-5">
-      {/* Нэг удаа харагдах нууц үг ---------------------------------------- */}
-      {secret ? (
-        <div className="rounded-lg border-2 border-green-400 bg-green-50 p-3">
-          <p className="text-sm font-semibold text-green-900">
-            {secret.badge} — түр нууц үг
-          </p>
-          <p className="my-2 font-mono text-lg break-all">{secret.password}</p>
-          <p className="text-xs text-green-800">
-            Энэ нууц үгийг ДАХИН харах боломжгүй. Одоо хуулж авч, алба хаагчид
-            дамжуулна уу.
-          </p>
-          <button
-            type="button"
-            onClick={() => setSecret(null)}
-            className="mt-2 text-sm underline"
-          >
-            Хаах
-          </button>
-        </div>
-      ) : null}
-
-      {/* Шинээр нэмэх ---------------------------------------------------- */}
+      {/* --- Шинэ алба хаагч ---------------------------------------------- */}
       <form
         onSubmit={create}
-        className="space-y-2 rounded-lg border border-slate-200 bg-white p-3"
+        className="space-y-3 rounded-xl border border-slate-200 bg-white p-4"
       >
         <h2 className="font-semibold">Шинэ алба хаагч</h2>
-        <div className="grid gap-2 sm:grid-cols-2">
+
+        <div className="grid gap-3 sm:grid-cols-2">
           <input
             value={badge}
             onChange={(event) => setBadge(event.target.value)}
             placeholder="Badge дугаар"
+            autoComplete="off"
             required
-            className="rounded-lg border border-slate-300 px-3 py-2"
+            className={field}
           />
           <input
             value={fullName}
             onChange={(event) => setFullName(event.target.value)}
             placeholder="Овог нэр"
+            autoComplete="off"
             required
-            className="rounded-lg border border-slate-300 px-3 py-2"
+            className={field}
           />
           <input
             value={unit}
             onChange={(event) => setUnit(event.target.value)}
             placeholder="Харьяа хэлтэс"
-            className="rounded-lg border border-slate-300 px-3 py-2"
+            autoComplete="off"
+            className={field}
           />
           <select
             value={role}
             onChange={(event) =>
               setRole(event.target.value as "SURVEYOR" | "ADMIN")
             }
-            className="rounded-lg border border-slate-300 px-3 py-2"
+            className={field}
           >
             <option value="SURVEYOR">Алба хаагч</option>
             <option value="ADMIN">Админ</option>
           </select>
+
+          <input
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder={`Нууц үг (доод тал нь ${MIN_PASSWORD})`}
+            autoComplete="new-password"
+            required
+            minLength={MIN_PASSWORD}
+            className={field}
+          />
+          <input
+            type="password"
+            value={passwordAgain}
+            onChange={(event) => setPasswordAgain(event.target.value)}
+            placeholder="Нууц үгээ давтах"
+            autoComplete="new-password"
+            required
+            className={field}
+          />
         </div>
+
+        {passwordAgain.length > 0 && password !== passwordAgain ? (
+          <p className="text-sm text-red-600">Нууц үг таарахгүй байна.</p>
+        ) : null}
+
         <button
           type="submit"
-          disabled={busy}
-          className="rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white disabled:opacity-60"
+          disabled={!canCreate}
+          className="rounded-lg bg-blue-600 px-4 py-2.5 font-semibold text-white disabled:bg-slate-300"
         >
-          Нэмэх
+          {busy ? "Нэмж байна…" : "Нэмэх"}
         </button>
       </form>
 
       {error ? (
-        <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>
+        <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </p>
+      ) : null}
+      {notice ? (
+        <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800">
+          {notice}
+        </p>
       ) : null}
 
-      {/* Жагсаалт -------------------------------------------------------- */}
+      {/* --- Жагсаалт ------------------------------------------------------ */}
       <ul className="space-y-2">
         {people.map((person) => (
           <li
             key={person.id}
-            className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-slate-200 bg-white p-3"
+            className="rounded-xl border border-slate-200 bg-white p-3"
           >
-            <span className="font-mono text-sm">{person.badge_number}</span>
-            <span className="font-medium">{person.full_name}</span>
-            {person.unit ? (
-              <span className="text-sm text-slate-500">{person.unit}</span>
-            ) : null}
-            {person.role === "ADMIN" ? (
-              <span className="rounded bg-slate-200 px-1.5 py-0.5 text-xs">
-                админ
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="font-mono text-sm">{person.badge_number}</span>
+              <span className="font-medium">{person.full_name}</span>
+              {person.unit ? (
+                <span className="text-sm text-slate-500">{person.unit}</span>
+              ) : null}
+              {person.role === "ADMIN" ? (
+                <span className="rounded bg-slate-200 px-2 py-0.5 text-xs font-medium">
+                  админ
+                </span>
+              ) : null}
+              <span
+                className={`rounded px-2 py-0.5 text-xs font-medium ${
+                  person.is_active
+                    ? "bg-green-100 text-green-800"
+                    : "bg-red-100 text-red-700"
+                }`}
+              >
+                {person.is_active ? "идэвхтэй" : "идэвхгүй"}
               </span>
-            ) : null}
-            {!person.is_active ? (
-              <span className="rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-700">
-                идэвхгүй
-              </span>
-            ) : null}
+            </div>
 
-            <span className="ml-auto flex gap-3 text-sm">
+            <div className="mt-2 flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => void patch(person.id, { reset_password: true })}
-                className="text-blue-600 underline"
+                onClick={() => {
+                  setEditingId(editingId === person.id ? null : person.id);
+                  setNewPassword("");
+                  setNewPasswordAgain("");
+                  setError(null);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 active:bg-slate-100"
               >
-                нууц үг сэргээх
+                <KeyIcon />
+                Нууц үг солих
               </button>
+
+              {/* Нэг товч хоёр төлөвийг сольдог — тусдаа "идэвхжүүлэх",
+                  "идэвхгүй болгох" товч байвал аль нь одоо хүчинтэйг
+                  таахад хүндрэнэ. */}
               <button
                 type="button"
                 onClick={() =>
                   void patch(person.id, { is_active: !person.is_active })
                 }
-                className={
-                  person.is_active ? "text-red-600 underline" : "text-green-700 underline"
-                }
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium ${
+                  person.is_active
+                    ? "border-red-300 bg-red-50 text-red-700 active:bg-red-100"
+                    : "border-green-300 bg-green-50 text-green-700 active:bg-green-100"
+                }`}
               >
-                {person.is_active ? "идэвхгүй болгох" : "идэвхжүүлэх"}
+                <PowerIcon />
+                {person.is_active ? "Идэвхгүй болгох" : "Идэвхжүүлэх"}
               </button>
-            </span>
+            </div>
+
+            {/* --- Нууц үг солих мөр --------------------------------------- */}
+            {editingId === person.id ? (
+              <div className="mt-3 space-y-2 rounded-lg bg-slate-50 p-3">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    placeholder={`Шинэ нууц үг (${MIN_PASSWORD}+)`}
+                    autoComplete="new-password"
+                    className={field}
+                  />
+                  <input
+                    type="password"
+                    value={newPasswordAgain}
+                    onChange={(event) => setNewPasswordAgain(event.target.value)}
+                    placeholder="Давтах"
+                    autoComplete="new-password"
+                    className={field}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void savePassword(person)}
+                    disabled={
+                      newPassword.length < MIN_PASSWORD ||
+                      newPassword !== newPasswordAgain
+                    }
+                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300"
+                  >
+                    Хадгалах
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingId(null)}
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm"
+                  >
+                    Болих
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </li>
         ))}
       </ul>
