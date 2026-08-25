@@ -57,7 +57,10 @@ export type Block = {
   duplicate?: DuplicateInfo;
 };
 
-export type Warning = { code: "PHONE_REUSED"; message: string };
+export type Warning = {
+  code: "PHONE_REUSED" | "NAME_REUSED";
+  message: string;
+};
 
 export type QualityInput = {
   name: string;
@@ -68,6 +71,11 @@ export type QualityInput = {
   osmRef: string | null;
   photos: Array<{ exifLat?: number | null; exifLng?: number | null }>;
   duplicateAck: boolean;
+  /**
+   * Засварлаж буй бүртгэлийн id. Байвал давхардлын хайлтаас өөрийг нь
+   * хасна — эс бөгөөс мөр өөрийгөө давхардал гэж заана.
+   */
+  excludeId?: string;
 };
 
 export type QualityResult = {
@@ -139,6 +147,13 @@ export async function checkQuality(
   const normalized = normalizeName(input.name);
 
   /*
+   * `undefined`-ийг SQL параметр болгож болохгүй: Drizzle түүнийг огт
+   * орлуулахгүй тул `::uuid is null` гэсэн эвдэрсэн синтакс үүсгэдэг
+   * (Postgres 42601). Тодорхой `null` болгож өгнө.
+   */
+  const excludeId = input.excludeId ?? null;
+
+  /*
    * Индекстэй дөрвөлжингөөр шүүж, trigram ижилслийг DB дээр бодуулна
    * (`gin(name_normalized gin_trgm_ops)` индекс §7-д үүсгэгдсэн).
    * `osm_ref`-ийн таарц нь дөрвөлжингөөс ГАДУУР ч байж болно: нэг л буудлын
@@ -160,6 +175,7 @@ export async function checkQuality(
       ) as photo_url
     from hotel_survey hs
     where hs.status <> 'DELETED'
+      and (${excludeId}::uuid is null or hs.id <> ${excludeId}::uuid)
       and (
         (${input.osmRef}::text is not null and hs.osm_ref = ${input.osmRef})
         or (
@@ -233,12 +249,40 @@ export async function checkQuality(
   }
 
   // -------------------------------------------------------------------------
-  // 4. Утас давхардсан эсэх — блок биш, зөвхөн анхааруулга.
+  // 4. ЯГ ижил нэр хаана ч байсан — блок биш, зөвхөн анхааруулга.
+  //
+  // Зай хол байвал (§11.3-ын 75м-ээс гадна) давхардлын шалгалт барихгүй.
+  // Гэвч яг ижил нэр өөр газар гарах нь хоёр утгатай: сүлжээ буудлын
+  // салбар (хэвийн), эсвэл цэгээ буруу тавьсан давхардал (алдаа). Аль нь
+  // болохыг зөвхөн алба хаагч мэднэ — тиймээс блоклохгүй, зөвхөн хэлнэ.
+  // -------------------------------------------------------------------------
+  if (!blocks.some((block) => block.code.startsWith("DUPLICATE"))) {
+    const nameRows = await getDb().execute<{ name: string }>(sql`
+      select name
+      from hotel_survey
+      where name_normalized = ${normalized}
+        and status <> 'DELETED'
+        and (${excludeId}::uuid is null or id <> ${excludeId}::uuid)
+      limit 1
+    `);
+    if (nameRows.rows?.[0]) {
+      warnings.push({
+        code: "NAME_REUSED",
+        message:
+          `"${input.name}" нэртэй өөр бүртгэл аль хэдийн байна. ` +
+          "Салбар мөн бол зүгээр, эс бөгөөс байршлаа шалгана уу.",
+      });
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 5. Утас давхардсан эсэх — блок биш, зөвхөн анхааруулга.
   //    Нэг эзэн хэд хэдэн буудалтай байх нь бодит зүйл.
   // -------------------------------------------------------------------------
   const phoneRows = await getDb().execute<{ name: string }>(sql`
     select name from hotel_survey
     where phone = ${input.phone} and status <> 'DELETED'
+      and (${excludeId}::uuid is null or id <> ${excludeId}::uuid)
     limit 1
   `);
   const phoneMatch = phoneRows.rows?.[0];

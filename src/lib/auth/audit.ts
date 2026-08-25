@@ -19,7 +19,8 @@ export type AuditAction =
   | "survey.created"
   | "survey.deleted"
   | "survey.restored"
-  | "surveyor.updated";
+  | "surveyor.updated"
+  | "survey.updated";
 
 export async function writeAudit(entry: {
   actorId?: string | null;

@@ -2,6 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import { AppHeader } from "@/components/AppHeader";
+import { OwnerActions } from "@/components/OwnerActions";
 import { SurveyCard } from "@/components/SurveyCard";
 import { getDb } from "@/db";
 import { hotelSurveys, surveyPhotos } from "@/db/schema";
@@ -100,6 +101,7 @@ export default async function MySurveysPage() {
                 photos: bySurvey.get(row.id) ?? [],
                 // Өөрийн бүртгэл дээр өөрийн badge харуулах нь илүүц.
               }}
+              actions={<OwnerActions surveyId={row.id} name={row.name} />}
             />
           ))}
         </ul>
