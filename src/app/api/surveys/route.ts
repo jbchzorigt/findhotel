@@ -19,6 +19,7 @@ import { writeAudit } from "@/lib/auth/audit";
 import { getClientIp, getSession } from "@/lib/auth/request";
 import { MAX_PHOTOS, MIN_PHOTOS } from "@/lib/photos/constants";
 import { normalizeName } from "@/lib/surveys/normalize";
+import { checkQuality } from "@/lib/surveys/quality";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +52,12 @@ const CreateSchema = z.object({
   note: z.string().trim().max(1000).nullable().optional(),
   captured_at: z.string().datetime(),
   photos: z.array(PhotoSchema).min(MIN_PHOTOS).max(MAX_PHOTOS),
+  /**
+   * Алба хаагч давхардлын анхааруулгыг хараад "өөр буудал мөн" гэж
+   * баталсан эсэх. Зөвхөн давхардлын блокийг давна — GPS/EXIF-ийн блокийг
+   * давахгүй (§11).
+   */
+  duplicate_ack: z.boolean().optional().default(false),
 });
 
 export async function POST(request: Request) {
@@ -93,6 +100,49 @@ export async function POST(request: Request) {
     );
   }
 
+  /*
+   * §11-ийн шалгалт. Энэ бол хог өгөгдөл Hotel SaaS руу орохоос сэргийлэх
+   * ЦОРЫН ГАНЦ давхарга — ахлагчийн хяналт байхгүй тул зөөлөн анхааруулга
+   * биш, хатуу блок.
+   */
+  const quality = await checkQuality({
+    name: input.name,
+    phone: input.phone,
+    lat: input.lat,
+    lng: input.lng,
+    locationAccuracyM: input.location_accuracy_m ?? null,
+    osmRef: input.osm_ref ?? null,
+    photos: input.photos.map((photo) => ({
+      exifLat: photo.exif_lat,
+      exifLng: photo.exif_lng,
+    })),
+    duplicateAck: input.duplicate_ack,
+  });
+
+  if (quality.blocks.length > 0) {
+    return NextResponse.json(
+      {
+        error: "Бүртгэлийг илгээх боломжгүй байна.",
+        blocks: quality.blocks.map((block) => ({
+          code: block.code,
+          message: block.message,
+          acknowledgeable: block.acknowledgeable,
+          duplicate: block.duplicate
+            ? {
+                id: block.duplicate.id,
+                name: block.duplicate.name,
+                photo_url: block.duplicate.photoUrl,
+                distance_m: block.duplicate.distanceM,
+                similarity: Number(block.duplicate.similarity.toFixed(2)),
+                created_at: block.duplicate.createdAt,
+              }
+            : undefined,
+        })),
+      },
+      { status: 409 },
+    );
+  }
+
   const [survey] = await db
     .insert(hotelSurveys)
     .values({
@@ -111,6 +161,10 @@ export async function POST(request: Request) {
       note: input.note ?? null,
       surveyorId: session.sub,
       capturedAt: new Date(input.captured_at),
+      // Сэжигтэй мөрийг тэмдэглэнэ — алба хаагч давсан ч мөр үлдэнэ,
+      // админ хожим шүүж хардаг.
+      duplicateAck: input.duplicate_ack,
+      duplicateOf: quality.duplicateOf,
     })
     .returning({ id: hotelSurveys.id });
 
@@ -137,10 +191,22 @@ export async function POST(request: Request) {
     action: "survey.created",
     subjectId: surveyId,
     ip: await getClientIp(),
-    detail: { name: input.name, photos: input.photos.length },
+    detail: {
+      name: input.name,
+      photos: input.photos.length,
+      duplicateAck: input.duplicate_ack,
+      duplicateOf: quality.duplicateOf,
+    },
   });
 
-  return NextResponse.json({ id: surveyId, status: "SUBMITTED" }, { status: 201 });
+  return NextResponse.json(
+    {
+      id: surveyId,
+      status: "SUBMITTED",
+      warnings: quality.warnings,
+    },
+    { status: 201 },
+  );
 }
 
 // ---------------------------------------------------------------------------

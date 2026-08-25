@@ -28,6 +28,33 @@ type Candidate = {
 
 type PhotoItem = { prepared: PreparedPhoto; previewUrl: string };
 
+type Block = {
+  code: string;
+  message: string;
+  acknowledgeable: boolean;
+  duplicate?: {
+    id: string;
+    name: string;
+    photo_url: string | null;
+    distance_m: number;
+    similarity: number;
+    created_at: string;
+  };
+};
+
+/** Сервер рүү илгээх зургийн мэдээлэл — хуулсны дараа энэ хэлбэрт шилжинэ. */
+type UploadedPhoto = {
+  r2_key: string;
+  public_url: string;
+  sha256: string;
+  bytes: number;
+  width: number;
+  height: number;
+  exif_lat: number | null;
+  exif_lng: number | null;
+  exif_taken_at: string | null;
+};
+
 const PHONE_PATTERN = /^[7-9][0-9]{7}$/;
 
 export function SurveyForm({ surveyorName }: { surveyorName: string }) {
@@ -52,6 +79,14 @@ export function SurveyForm({ surveyorName }: { surveyorName: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  const [blocks, setBlocks] = useState<Block[]>([]);
+
+  /*
+   * Хуулж дууссан зургууд. Давхардлаас болж татгалзсаны дараа алба хаагч
+   * "өөр буудал мөн" гэж баталвал зургийг ДАХИН хуулахгүй — талбарын дата
+   * үнэтэй, R2-ийн багтаамж ч дэмий эзлэгдэнэ.
+   */
+  const uploadedRef = useRef<UploadedPhoto[] | null>(null);
 
   // Дахин илгээхэд шинэ мөр үүсэхээс сэргийлнэ — сервер энэ түлхүүрээр
   // давхардлыг таньдаг.
@@ -82,6 +117,8 @@ export function SurveyForm({ surveyorName }: { surveyorName: string }) {
           })),
         ]);
         setCapturedAt((current) => current ?? new Date().toISOString());
+        // Зураг нэмэгдсэн тул өмнө хуулсан багц хүчингүй боллоо.
+        uploadedRef.current = null;
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "Зураг уншиж чадсангүй.");
       } finally {
@@ -92,6 +129,7 @@ export function SurveyForm({ surveyorName }: { surveyorName: string }) {
   );
 
   function removePhoto(index: number) {
+    uploadedRef.current = null;
     setPhotos((current) => {
       URL.revokeObjectURL(current[index]!.previewUrl);
       return current.filter((_, i) => i !== index);
@@ -179,28 +217,32 @@ export function SurveyForm({ surveyorName }: { surveyorName: string }) {
     PHONE_PATTERN.test(phone) &&
     !busy;
 
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    if (!canSubmit || !position) return;
-
+  async function send(duplicateAck: boolean) {
+    if (!position) return;
     setError(null);
-    setBusy("Зураг хуулж байна…");
+    setBlocks([]);
+
     try {
-      const uploaded = [];
-      for (const [index, item] of photos.entries()) {
-        setBusy(`Зураг хуулж байна… (${index + 1}/${photos.length})`);
-        const { r2Key, publicUrl } = await uploadPhoto(item.prepared);
-        uploaded.push({
-          r2_key: r2Key,
-          public_url: publicUrl,
-          sha256: item.prepared.sha256,
-          bytes: item.prepared.bytes,
-          width: item.prepared.width,
-          height: item.prepared.height,
-          exif_lat: item.prepared.exif.lat,
-          exif_lng: item.prepared.exif.lng,
-          exif_taken_at: item.prepared.exif.takenAt?.toISOString() ?? null,
-        });
+      // Зургийг зөвхөн НЭГ удаа хуулна. Давхардлаас болж татгалзсаны дараа
+      // дахин илгээхэд өмнө хуулсныг ашиглана.
+      if (!uploadedRef.current) {
+        const uploaded: UploadedPhoto[] = [];
+        for (const [index, item] of photos.entries()) {
+          setBusy(`Зураг хуулж байна… (${index + 1}/${photos.length})`);
+          const { r2Key, publicUrl } = await uploadPhoto(item.prepared);
+          uploaded.push({
+            r2_key: r2Key,
+            public_url: publicUrl,
+            sha256: item.prepared.sha256,
+            bytes: item.prepared.bytes,
+            width: item.prepared.width,
+            height: item.prepared.height,
+            exif_lat: item.prepared.exif.lat,
+            exif_lng: item.prepared.exif.lng,
+            exif_taken_at: item.prepared.exif.takenAt?.toISOString() ?? null,
+          });
+        }
+        uploadedRef.current = uploaded;
       }
 
       setBusy("Бүртгэл илгээж байна…");
@@ -220,17 +262,29 @@ export function SurveyForm({ surveyorName }: { surveyorName: string }) {
           osm_raw_name: osmRawName,
           note: note.trim() || null,
           captured_at: capturedAt ?? new Date().toISOString(),
-          photos: uploaded,
+          photos: uploadedRef.current,
+          duplicate_ack: duplicateAck,
         }),
       });
       const body = await response.json().catch(() => ({}));
+
+      if (response.status === 409 && Array.isArray(body.blocks)) {
+        setBlocks(body.blocks);
+        return;
+      }
       if (!response.ok) {
         setError(body.error ?? "Бүртгэл илгээж чадсангүй.");
         return;
       }
 
-      setDone(name.trim());
-      // Дараагийн буудалд бэлдэнэ — байршил, зураг бүгд шинэчлэгдэнэ.
+      const reused = (body.warnings ?? []).find(
+        (item: { code: string }) => item.code === "PHONE_REUSED",
+      );
+      setDone(
+        reused ? `${name.trim()} — ${reused.message}` : name.trim(),
+      );
+
+      // Дараагийн буудалд бэлдэнэ.
       photos.forEach((item) => URL.revokeObjectURL(item.previewUrl));
       setPhotos([]);
       setPosition(null);
@@ -242,12 +296,19 @@ export function SurveyForm({ surveyorName }: { surveyorName: string }) {
       setNearby(null);
       setOsmRef(null);
       setOsmRawName(null);
+      uploadedRef.current = null;
       clientUuid.current = crypto.randomUUID();
     } catch {
       setError("Сүлжээнд холбогдож чадсангүй. Дахин оролдоно уу.");
     } finally {
       setBusy(null);
     }
+  }
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!canSubmit) return;
+    await send(false);
   }
 
   // -------------------------------------------------------------------------
@@ -447,6 +508,73 @@ export function SurveyForm({ surveyorName }: { surveyorName: string }) {
           />
         </div>
       </section>
+
+      {/* Чанарын блок (§11) ---------------------------------------------- */}
+      {blocks.length > 0 ? (
+        <section
+          role="alert"
+          className="space-y-3 rounded-lg border-2 border-red-300 bg-red-50 p-3"
+        >
+          <h2 className="font-semibold text-red-800">Илгээх боломжгүй</h2>
+
+          {blocks.map((block) => (
+            <div key={block.code} className="space-y-2 text-sm text-red-900">
+              <p>{block.message}</p>
+
+              {/*
+                Давхардлын үед өмнөх бүртгэлийн ЗУРГИЙГ харуулна — алба хаагч
+                нүдээрээ харьцуулж байж л "өөр буудал мөн" гэж шийдэж чадна.
+              */}
+              {block.duplicate ? (
+                <div className="flex gap-3 rounded-lg bg-white p-2">
+                  {block.duplicate.photo_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={block.duplicate.photo_url}
+                      alt={block.duplicate.name}
+                      className="h-20 w-20 shrink-0 rounded object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded bg-slate-100 text-xs text-slate-400">
+                      зураггүй
+                    </div>
+                  )}
+                  <div className="min-w-0 text-slate-700">
+                    <p className="font-medium">{block.duplicate.name}</p>
+                    <p className="text-xs">
+                      {block.duplicate.distance_m}м зайд
+                      {block.duplicate.similarity > 0
+                        ? ` · нэрний ижилсэл ${block.duplicate.similarity}`
+                        : null}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {new Date(block.duplicate.created_at).toLocaleDateString(
+                        "mn-MN",
+                      )}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ))}
+
+          {blocks.every((block) => block.acknowledgeable) ? (
+            <button
+              type="button"
+              disabled={Boolean(busy)}
+              onClick={() => void send(true)}
+              className="w-full rounded-lg border-2 border-red-400 bg-white py-3 font-semibold text-red-800 disabled:opacity-60"
+            >
+              Энэ бол өөр буудал — үргэлжлүүлэх
+            </button>
+          ) : (
+            <p className="text-xs text-red-700">
+              Энэ шалгалтыг давах боломжгүй. Дээрх заавраар засаад дахин
+              оролдоно уу.
+            </p>
+          )}
+        </section>
+      ) : null}
 
       {error ? (
         <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
