@@ -15,7 +15,7 @@ import { z } from "zod";
 import { getDb } from "@/db";
 import { surveyors } from "@/db/schema";
 import { writeAudit } from "@/lib/auth/audit";
-import { DUMMY_HASH, verifyPassword } from "@/lib/auth/password";
+import { getDummyHash, verifyPassword } from "@/lib/auth/password";
 import { getClientIp, getUserAgent } from "@/lib/auth/request";
 import {
   SESSION_COOKIE,
@@ -67,7 +67,10 @@ export async function POST(request: Request) {
     .limit(1);
 
   // Данс олдоогүй ч bcrypt-ийг ЯГ адил ажиллуулна — цагийн зөрүү үүсгэхгүй.
-  const ok = await verifyPassword(password, surveyor?.passwordHash ?? DUMMY_HASH);
+  const ok = await verifyPassword(
+    password,
+    surveyor?.passwordHash ?? getDummyHash(),
+  );
 
   if (!surveyor || !ok) {
     await writeAudit({
