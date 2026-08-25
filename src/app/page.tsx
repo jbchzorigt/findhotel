@@ -17,7 +17,7 @@ export default async function NewSurveyPage() {
 
   return (
     <main className="mx-auto max-w-md p-4">
-      <AppHeader active="new" />
+      <AppHeader active="new" role={session.role} />
       <SurveyForm surveyorName={`${session.badge} — нэвтэрсэн`} />
     </main>
   );

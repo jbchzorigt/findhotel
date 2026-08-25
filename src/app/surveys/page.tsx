@@ -28,7 +28,7 @@ export default async function MySurveysPage() {
 
   return (
     <main className="mx-auto max-w-md p-4">
-      <AppHeader active="list" />
+      <AppHeader active="list" role={session.role} />
 
       {rows.length === 0 ? (
         <p className="mt-8 text-center text-sm text-slate-500">

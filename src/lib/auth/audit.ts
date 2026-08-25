@@ -16,7 +16,10 @@ export type AuditAction =
   | "surveyor.password_reset"
   | "photo.upload_url"
   | "geo.lookup"
-  | "survey.created";
+  | "survey.created"
+  | "survey.deleted"
+  | "survey.restored"
+  | "surveyor.updated";
 
 export async function writeAudit(entry: {
   actorId?: string | null;
