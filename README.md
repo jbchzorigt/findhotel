@@ -12,8 +12,8 @@
 |---|---|---|
 | 0 | Репо, Drizzle схем, Neon холболт, `/api/health` | ✅ дууссан |
 | 1 | Нэвтрэлт (badge + нууц үг), seed script | ✅ дууссан |
-| 2 | Зураг: R2 upload, клиент шахалт, EXIF | ⏳ дараагийнх |
-| 3 | Маягт: камер, GPS, `[📍]` хаяг олох, Leaflet | — |
+| 2 | Зураг: R2 upload, клиент шахалт, EXIF | ✅ дууссан |
+| 3 | Маягт: камер, GPS, `[📍]` хаяг олох, Leaflet | ⏳ дараагийнх |
 | 4 | Давхардал + чанарын шалгалт | — |
 | 5 | Админ дэлгэц | — |
 | 6 | Экспорт (`.sql`) + Hotel SaaS талын миграци | — |
@@ -47,6 +47,7 @@ npm run dev
 | `npm run db:migrate` | Миграцийг DB рүү тавих |
 | `npm run db:studio` | Drizzle Studio — өгөгдлийг нүдээр харах |
 | `npm run seed` | Алба хаагч үүсгэх / нууц үг сэргээх |
+| `npm run storage:init` | Локал MinIO дээр bucket бэлдэх |
 
 > `db:push`-ыг зөвхөн туршилтын DB дээр хэрэглэ. Production-д үргэлж
 > `db:generate` → файлыг нь хянаж уншаад → `db:migrate`.
@@ -63,6 +64,18 @@ npm run seed -- --badge A-1001 --name "Батын Болд" --unit "СБД" --ro
 ```bash
 npm run seed -- --badge A-1001 --reset-password
 ```
+
+## Зургийн хадгалалтыг локал дээр турших
+
+Cloudflare данс байхгүй ч зургийн урсгалыг бүрэн туршиж болно — R2 нь
+S3-нийцтэй тул MinIO яг ижил кодоор ажиллана:
+
+```bash
+docker compose up -d && npm run storage:init
+```
+
+Дараа нь `.env.local` дотор `R2_ENDPOINT=http://localhost:9100` болон
+`docker-compose.yml`-д бичсэн түлхүүрүүдийг тавина.
 
 ## Гадаад үйлчилгээ — бүгд үнэгүй
 

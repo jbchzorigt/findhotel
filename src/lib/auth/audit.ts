@@ -13,7 +13,8 @@ export type AuditAction =
   | "auth.login.failed"
   | "auth.logout"
   | "surveyor.created"
-  | "surveyor.password_reset";
+  | "surveyor.password_reset"
+  | "photo.upload_url";
 
 export async function writeAudit(entry: {
   actorId?: string | null;

@@ -1,0 +1,31 @@
+# Локал хөгжүүлэлт/тест — R2-ийн орлуулагч.
+#
+# R2 нь S3-нийцтэй тул MinIO дээр яг ижил кодоор бүрэн туршиж болно:
+# presigned URL, гарын үсэгт уяатай content-type, нийтэд унших бодлого — бүгд.
+# Ингэснээр Cloudflare данс байхгүй байхад ч зургийн урсгалыг батлах боломжтой.
+#
+#   docker compose up -d
+#   npm run storage:init      # bucket + нийтэд унших бодлого
+#
+# Дараа нь .env.local дотор:
+#   R2_ENDPOINT=http://localhost:9100
+#   R2_ACCESS_KEY_ID=hfsminio
+#   R2_SECRET_ACCESS_KEY=hfsminio12345
+#   R2_BUCKET=hfs-photos
+#   R2_PUBLIC_BASE_URL=http://localhost:9100/hfs-photos
+services:
+  minio:
+    image: minio/minio
+    container_name: hfs-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: hfsminio
+      MINIO_ROOT_PASSWORD: hfsminio12345
+    ports:
+      - "9100:9000" # S3 API
+      - "9101:9001" # вэб консол
+    volumes:
+      - hfs-minio-data:/data
+
+volumes:
+  hfs-minio-data:

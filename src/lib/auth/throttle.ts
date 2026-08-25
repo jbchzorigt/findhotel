@@ -52,3 +52,28 @@ export async function checkLoginThrottle(
   }
   return { blocked: false };
 }
+
+/**
+ * Ерөнхий хязгаарлалт: нэг хэрэглэгч, нэг төрлийн үйлдлийг цонхонд хэдэн
+ * удаа хийснийг тоолно.
+ *
+ * Нэвтрэлтийн хязгаартай ижил шалтгаанаар DB дээр — serverless дээр санах
+ * ойн тоолуур утгагүй. `audit_log` нь энэ үйлдлүүдийг аль хэдийн бичдэг тул
+ * нэмэлт хүснэгт шаардахгүй.
+ */
+export async function checkActorRate(options: {
+  actorId: string;
+  action: string;
+  limit: number;
+  windowSeconds: number;
+}): Promise<boolean> {
+  const rows = await getDb().execute<{ recent: number }>(sql`
+    select count(*)::int as recent
+    from audit_log
+    where actor_id = ${options.actorId}
+      and action = ${options.action}
+      and created_at > now() - make_interval(secs => ${options.windowSeconds})
+  `);
+  const recent = rows.rows?.[0]?.recent ?? 0;
+  return recent < options.limit;
+}
