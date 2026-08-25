@@ -41,3 +41,135 @@ select,
 textarea {
   font-size: 16px;
 }
+
+/* ===========================================================================
+   Ачаалалтын дэлгэц — газрын зүү зурагдах эффект
+   =========================================================================== */
+
+.hfs-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  background: var(--background);
+  opacity: 1;
+  transition: opacity 350ms ease-out;
+}
+
+.hfs-splash[data-fading] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hfs-splash-mark {
+  width: 150px;
+  height: 150px;
+}
+
+/* --- 1. Байршлын дохио (ping) ---------------------------------------- */
+.hfs-ping ellipse {
+  fill: none;
+  stroke: #93c5fd;
+  stroke-width: 3;
+  transform-origin: 100px 180px;
+  animation: hfs-ping 1800ms ease-out infinite;
+}
+
+/* Хоёр дахь давалгаа хагас мөчлөгийн зөрүүтэй — тасралтгүй мэт харагдана. */
+.hfs-ping ellipse:nth-child(2) {
+  animation-delay: 900ms;
+}
+
+@keyframes hfs-ping {
+  0% {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+/* --- 2. Контур зурагдах ----------------------------------------------- */
+/*
+ * `pathLength="1"` нь замыг 1 нэгж болгож нормчилсон тул dasharray-г
+ * пикселээр тооцох шаардлагагүй.
+ */
+.hfs-pin-stroke {
+  stroke: #1e3a8a;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: hfs-draw 900ms ease-in-out forwards;
+}
+
+.hfs-pin-dot {
+  stroke: #e8112d;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: hfs-draw 450ms ease-out 750ms forwards;
+}
+
+@keyframes hfs-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* --- 3. Дүүргэлт ------------------------------------------------------- */
+.hfs-pin-fill {
+  fill: #2563eb;
+  opacity: 0;
+  animation: hfs-fill 450ms ease-out 800ms forwards;
+}
+
+@keyframes hfs-fill {
+  to {
+    opacity: 0.12;
+  }
+}
+
+.hfs-splash-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #475569;
+  opacity: 0;
+  animation: hfs-fade-in 450ms ease-out 900ms forwards;
+}
+
+@keyframes hfs-fade-in {
+  to {
+    opacity: 1;
+  }
+}
+
+/*
+ * Хөдөлгөөн багасгах тохиргоотой хэрэглэгчид анимаци харуулахгүй — зарим
+ * хүнд толгой эргэх, анхаарал сарних шалтгаан болдог. Эцсийн байдлыг нь
+ * шууд харуулна.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .hfs-ping ellipse {
+    display: none;
+  }
+
+  .hfs-pin-stroke,
+  .hfs-pin-dot,
+  .hfs-pin-fill,
+  .hfs-splash-title {
+    animation: none;
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+
+  .hfs-pin-fill {
+    opacity: 0.12;
+  }
+}
