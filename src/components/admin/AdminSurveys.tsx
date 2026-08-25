@@ -9,6 +9,8 @@
  */
 import { useCallback, useEffect, useState } from "react";
 
+import { formatDateTime } from "@/lib/format";
+
 type Survey = {
   id: string;
   name: string;
@@ -28,6 +30,74 @@ type Survey = {
 };
 
 type Surveyor = { id: string; badge_number: string; full_name: string };
+
+/**
+ * Дүрсүүдийг inline SVG-ээр — зөвхөн хоёр дүрсний төлөө сан нэмэх нь
+ * bundle-д илүүц жин. `currentColor` ашигласан тул товчны өнгийг дагана.
+ */
+function MapIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden
+    >
+      <path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z" />
+      <path d="M9 3v15M15 6v15" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden
+    >
+      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
+
+function RestoreIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-4 w-4"
+      aria-hidden
+    >
+      <path d="M3 12a9 9 0 1 0 3-6.7" />
+      <path d="M3 4v5h5" />
+    </svg>
+  );
+}
+
+/** Шошготой жижиг мэдээлэл — "утга" нь тайлбаргүй бол уншигдахгүй. */
+function Meta({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="whitespace-nowrap">
+      <span className="text-slate-400">{label}:</span>{" "}
+      <span className="text-slate-600">{value}</span>
+    </span>
+  );
+}
 
 export function AdminSurveys({ surveyors }: { surveyors: Surveyor[] }) {
   const [surveys, setSurveys] = useState<Survey[]>([]);
@@ -130,91 +200,131 @@ export function AdminSurveys({ surveyors }: { surveyors: Surveyor[] }) {
       </p>
 
       {/* Жагсаалт -------------------------------------------------------- */}
-      <ul className="space-y-3">
+      <ul className="space-y-4">
         {surveys.map((survey) => (
           <li
             key={survey.id}
-            className={`rounded-lg border bg-white p-3 ${
+            className={`overflow-hidden rounded-xl border bg-white ${
               survey.duplicate_ack ? "border-amber-400" : "border-slate-200"
             }`}
           >
-            <div className="flex gap-3">
-              <div className="flex shrink-0 gap-1">
-                {survey.photos.slice(0, 2).map((url) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+            {/* --- Зургууд: хэвтээ гүйлгэх ---------------------------------
+                Бүх зургийг харуулна (өмнө нь 2-оор таслаж байсан). Утсан
+                дээр хуруугаараа шудрахад `snap` нь зураг бүрийг цэгцтэй
+                зогсооно. */}
+            {survey.photos.length > 0 ? (
+              <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto p-2">
+                {survey.photos.map((url, index) => (
+                  <a
                     key={url}
-                    src={url}
-                    alt={survey.name}
-                    className="h-20 w-20 rounded object-cover"
-                  />
+                    href={url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="shrink-0 snap-start"
+                    title="Томруулж харах"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={url}
+                      alt={`${survey.name} — зураг ${index + 1}`}
+                      className="h-44 w-64 rounded-lg bg-slate-100 object-cover"
+                    />
+                  </a>
                 ))}
-                {survey.photos.length === 0 ? (
-                  <div className="flex h-20 w-20 items-center justify-center rounded bg-slate-100 text-xs text-slate-400">
-                    зураггүй
-                  </div>
-                ) : null}
               </div>
+            ) : (
+              <div className="flex h-24 items-center justify-center bg-slate-50 text-sm text-slate-400">
+                зураггүй
+              </div>
+            )}
 
-              <div className="min-w-0 flex-1">
-                <p className="font-medium">
-                  {survey.name}
+            <div className="space-y-3 px-3 pb-3 pt-1">
+              {/* --- Нэр ба үндсэн мэдээлэл ---------------------------- */}
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-lg font-semibold">{survey.name}</h3>
                   {survey.duplicate_ack ? (
                     <span
-                      className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800"
+                      className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
                       title="Алба хаагч давхардлын анхааруулгыг давсан"
                     >
                       давхардлын туг
                     </span>
                   ) : null}
                   {survey.status === "DELETED" ? (
-                    <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-xs">
+                    <span className="rounded bg-slate-200 px-2 py-0.5 text-xs font-medium">
                       устгасан
                     </span>
                   ) : null}
-                </p>
-                <p className="text-sm text-slate-600">{survey.phone}</p>
+                </div>
+
+                <p className="mt-0.5 text-slate-700">{survey.phone}</p>
                 {survey.address_text ? (
-                  <p className="text-sm text-slate-500">{survey.address_text}</p>
+                  <p className="text-sm text-slate-500">
+                    {survey.address_text}
+                  </p>
                 ) : null}
                 {survey.note ? (
-                  <p className="text-sm text-slate-500">✎ {survey.note}</p>
+                  <p className="mt-1 text-sm text-slate-500">✎ {survey.note}</p>
                 ) : null}
-                <p className="mt-1 text-xs text-slate-400">
-                  {survey.surveyor.badge} · {survey.location_source}
-                  {survey.accuracy_m !== null ? ` ±${survey.accuracy_m}м` : ""}
-                  {survey.osm_ref ? ` · ${survey.osm_ref}` : ""} ·{" "}
-                  {new Date(survey.created_at).toLocaleString("mn-MN")}
-                </p>
               </div>
-            </div>
 
-            <div className="mt-2 flex gap-3 text-sm">
-              <a
-                href={`https://www.openstreetmap.org/?mlat=${survey.lat}&mlon=${survey.lng}#map=19/${survey.lat}/${survey.lng}`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-600 underline"
-              >
-                газрын зураг
-              </a>
-              {survey.status === "DELETED" ? (
-                <button
-                  type="button"
-                  onClick={() => void setStatus(survey.id, "SUBMITTED")}
-                  className="text-green-700 underline"
+              {/* --- Техникийн мэдээлэл --------------------------------
+                  Өмнө нь бүгд нэг мөрөнд цэгээр тусгаарлагдаж, ямар тоо
+                  юуг илэрхийлж байгаа нь ойлгомжгүй байсан. Шошготой
+                  болгосон. */}
+              <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 pt-2 text-xs">
+                <Meta label="Алба хаагч" value={survey.surveyor.badge} />
+                <Meta
+                  label="Байршил"
+                  value={
+                    survey.location_source +
+                    (survey.accuracy_m !== null
+                      ? ` ±${survey.accuracy_m}м`
+                      : "")
+                  }
+                />
+                {survey.osm_ref ? (
+                  <Meta label="OSM" value={survey.osm_ref} />
+                ) : null}
+                <Meta
+                  label="Бүртгэсэн"
+                  value={formatDateTime(survey.created_at)}
+                />
+              </div>
+
+              {/* --- Үйлдлүүд ------------------------------------------ */}
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href={`https://www.openstreetmap.org/?mlat=${survey.lat}&mlon=${survey.lng}#map=19/${survey.lat}/${survey.lng}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 active:bg-slate-100"
                 >
-                  сэргээх
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => void setStatus(survey.id, "DELETED")}
-                  className="text-red-600 underline"
-                >
-                  устгах
-                </button>
-              )}
+                  <MapIcon />
+                  Газрын зураг
+                </a>
+
+                {survey.status === "DELETED" ? (
+                  <button
+                    type="button"
+                    onClick={() => void setStatus(survey.id, "SUBMITTED")}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-green-300 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 active:bg-green-100"
+                  >
+                    <RestoreIcon />
+                    Сэргээх
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void setStatus(survey.id, "DELETED")}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 active:bg-red-100"
+                  >
+                    <TrashIcon />
+                    Устгах
+                  </button>
+                )}
+              </div>
             </div>
           </li>
         ))}

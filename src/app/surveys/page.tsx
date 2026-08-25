@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { getDb } from "@/db";
 import { hotelSurveys } from "@/db/schema";
 import { getSession } from "@/lib/auth/request";
+import { formatDateTime } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,7 @@ export default async function MySurveysPage() {
                 <p className="text-sm text-slate-500">{row.addressText}</p>
               ) : null}
               <p className="mt-1 text-xs text-slate-400">
-                {row.createdAt.toLocaleString("mn-MN")}
+                {formatDateTime(row.createdAt)}
               </p>
             </li>
           ))}

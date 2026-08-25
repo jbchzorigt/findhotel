@@ -10,6 +10,7 @@
 import { useCallback, useRef, useState } from "react";
 
 import { MapPicker } from "@/components/MapPicker";
+import { formatDate } from "@/lib/format";
 import { MAX_PHOTOS } from "@/lib/photos/constants";
 import { preparePhoto, uploadPhoto, type PreparedPhoto } from "@/lib/photos/prepare";
 
@@ -555,9 +556,7 @@ export function SurveyForm({ surveyorName }: { surveyorName: string }) {
                         : null}
                     </p>
                     <p className="text-xs text-slate-500">
-                      {new Date(block.duplicate.created_at).toLocaleDateString(
-                        "mn-MN",
-                      )}
+                      {formatDate(block.duplicate.created_at)}
                     </p>
                   </div>
                 </div>

@@ -17,9 +17,40 @@
   --font-mono: var(--font-geist-mono);
 }
 
-body {
+/*
+ * Дэвсгэрийн өнгийг `html` дээр тавьсан нь санамсаргүй биш: доорх усан
+ * тэмдэг нь `body::before` дээр `z-index: -1`-тэй сууна. Хэрэв `body` өөрөө
+ * дэвсгэртэй байвал тэр нь усан тэмдгийг дарах байсан.
+ */
+html {
   background: var(--background);
+}
+
+body {
+  background: transparent;
   color: var(--foreground);
+}
+
+/*
+ * Албаны сүлд — төвд, маш бүдэг.
+ *
+ * `opacity` нь зориуд бага (0.045): усан тэмдэг нь агуулгыг унших, ялангуяа
+ * гадаа нарны гэрэлд, ямар ч байдлаар саатуулах ёсгүй. Мөн `fixed` тул
+ * гүйлгэхэд хөдлөхгүй, `pointer-events: none` тул дарахад саад болохгүй.
+ *
+ * Файл байхгүй бол юу ч харагдахгүй — алдаа өгөхгүй.
+ */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: url("/police-logo.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: min(68vw, 380px);
+  opacity: 0.045;
 }
 
 /*
