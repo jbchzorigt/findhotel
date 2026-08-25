@@ -41,25 +41,67 @@ function KeyIcon() {
   );
 }
 
-function PowerIcon() {
+/**
+ * Идэвхтэй эсэхийг сэлгэх унтраалга.
+ *
+ * Товчны оронд унтраалга сонгосон шалтгаан: төлөв нь ӨӨРӨӨ удирдлага байх нь
+ * ойлгомжтой. "Идэвхгүй болгох" гэсэн товч нь одоогийн төлөвийг биш, дарвал
+ * юу болохыг заадаг — тэр хоёрыг хүн агшин зуур андуурдаг.
+ *
+ * `role="switch"` + `aria-checked` нь дэлгэц уншигчид төлөвийг хэлнэ; өнгө
+ * ганцаараа хангалтгүй.
+ */
+function ActiveToggle({
+  active,
+  disabled,
+  title,
+  onToggle,
+}: {
+  active: boolean;
+  disabled?: boolean;
+  title?: string;
+  onToggle: () => void;
+}) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="h-4 w-4"
-      aria-hidden
+    <button
+      type="button"
+      role="switch"
+      aria-checked={active}
+      disabled={disabled}
+      title={title}
+      onClick={onToggle}
+      className="inline-flex items-center gap-2 disabled:opacity-50"
     >
-      <path d="M12 3v9" />
-      <path d="M5.6 7.6a9 9 0 1 0 12.8 0" />
-    </svg>
+      <span
+        className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${
+          active ? "bg-green-500" : "bg-slate-300"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+            active ? "translate-x-[1.375rem]" : "translate-x-0.5"
+          }`}
+        />
+      </span>
+      <span
+        className={`text-sm font-medium ${
+          active ? "text-green-700" : "text-slate-500"
+        }`}
+      >
+        {active ? "Идэвхтэй" : "Идэвхгүй"}
+      </span>
+    </button>
   );
 }
 
-export function AdminSurveyors({ initial }: { initial: Surveyor[] }) {
+export function AdminSurveyors({
+  initial,
+  currentUserId,
+}: {
+  initial: Surveyor[];
+  /** Админ өөрийгөө унтраавал системд орох хүнгүй үлдэж мэднэ. */
+  currentUserId: string;
+}) {
   const [people, setPeople] = useState<Surveyor[]>(initial);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -247,7 +289,10 @@ export function AdminSurveyors({ initial }: { initial: Surveyor[] }) {
       </form>
 
       {error ? (
-        <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+        <p
+          role="alert"
+          className="rounded-lg bg-red-50 p-3 text-sm text-red-700"
+        >
           {error}
         </p>
       ) : null}
@@ -275,15 +320,20 @@ export function AdminSurveyors({ initial }: { initial: Surveyor[] }) {
                   админ
                 </span>
               ) : null}
-              <span
-                className={`rounded px-2 py-0.5 text-xs font-medium ${
-                  person.is_active
-                    ? "bg-green-100 text-green-800"
-                    : "bg-red-100 text-red-700"
-                }`}
-              >
-                {person.is_active ? "идэвхтэй" : "идэвхгүй"}
-              </span>
+              <div className="ml-auto">
+                <ActiveToggle
+                  active={person.is_active}
+                  disabled={person.id === currentUserId}
+                  title={
+                    person.id === currentUserId
+                      ? "Өөрийгөө идэвхгүй болгох боломжгүй"
+                      : undefined
+                  }
+                  onToggle={() =>
+                    void patch(person.id, { is_active: !person.is_active })
+                  }
+                />
+              </div>
             </div>
 
             <div className="mt-2 flex flex-wrap gap-2">
@@ -299,24 +349,6 @@ export function AdminSurveyors({ initial }: { initial: Surveyor[] }) {
               >
                 <KeyIcon />
                 Нууц үг солих
-              </button>
-
-              {/* Нэг товч хоёр төлөвийг сольдог — тусдаа "идэвхжүүлэх",
-                  "идэвхгүй болгох" товч байвал аль нь одоо хүчинтэйг
-                  таахад хүндрэнэ. */}
-              <button
-                type="button"
-                onClick={() =>
-                  void patch(person.id, { is_active: !person.is_active })
-                }
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium ${
-                  person.is_active
-                    ? "border-red-300 bg-red-50 text-red-700 active:bg-red-100"
-                    : "border-green-300 bg-green-50 text-green-700 active:bg-green-100"
-                }`}
-              >
-                <PowerIcon />
-                {person.is_active ? "Идэвхгүй болгох" : "Идэвхжүүлэх"}
               </button>
             </div>
 
@@ -335,7 +367,9 @@ export function AdminSurveyors({ initial }: { initial: Surveyor[] }) {
                   <input
                     type="password"
                     value={newPasswordAgain}
-                    onChange={(event) => setNewPasswordAgain(event.target.value)}
+                    onChange={(event) =>
+                      setNewPasswordAgain(event.target.value)
+                    }
                     placeholder="Давтах"
                     autoComplete="new-password"
                     className={field}

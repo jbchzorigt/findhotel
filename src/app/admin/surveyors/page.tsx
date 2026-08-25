@@ -29,7 +29,7 @@ export default async function AdminSurveyorsPage() {
   return (
     <main className="mx-auto max-w-3xl p-4">
       <AppHeader active="surveyors" role={session.role} />
-      <AdminSurveyors initial={people} />
+      <AdminSurveyors initial={people} currentUserId={session.sub} />
     </main>
   );
 }

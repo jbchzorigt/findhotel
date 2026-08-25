@@ -1,7 +1,12 @@
 /**
  * Хүсэлтээс нэвтрэлт болон гарал үүслийг унших туслахууд.
  */
+import { and, eq } from "drizzle-orm";
 import { cookies, headers } from "next/headers";
+import { cache } from "react";
+
+import { getDb } from "@/db";
+import { surveyors } from "@/db/schema";
 
 import {
   SESSION_COOKIE,
@@ -10,17 +15,46 @@ import {
 } from "./session";
 
 /**
- * Cookie-гоос сешнийг уншиж шалгана.
+ * Cookie-гоос сешнийг уншиж, өгөгдлийн сангаас БАТАЛГААЖУУЛНА.
  *
- * `proxy.ts` аль хэдийн шалгасан байсан ч route бүр ДАХИН шалгана. Учир нь
- * proxy нь таних тэмдгийг header-ээр дамжуулбал клиент тэр header-ийг өөрөө
- * хуурамчаар илгээж чадна. Cookie-гоос гарын үсэг шалгах нь цорын ганц
- * найдвартай эх сурвалж. Proxy бол зөвхөн хурдан хаалт.
+ * Токен дангаараа хангалтгүй. Токен 12 цаг амьдардаг тул зөвхөн гарын
+ * үсгийг шалгавал идэвхгүй болгосон эсвэл устгасан алба хаагч тэр
+ * хугацаанд бүх эрхээ хадгална — админы эрх ч мөн адил. Тэгвэл
+ * "идэвхгүй болгох" үйлдэл нь шууд биш, хойшлуулсан үйлдэл болж хувирна.
+ *
+ * Мөн ЭРХИЙГ ч DB-ээс авна: админ эрхээ хасуулсан хүн токендээ хуучин
+ * эрхээ үүрсээр байх ёсгүй.
+ *
+ * `cache()` нь нэг хүсэлтийн дотор давтан дуудахад ганцхан удаа л DB рүү
+ * очихыг баталгаажуулна (layout + page + route хамт дуудах нь элбэг).
+ *
+ * `proxy.ts` нь Edge дээр ажилладаг тул үүнийг ашиглахгүй — тэнд зөвхөн
+ * гарын үсгийн шалгалт явна. Тэр нь хурдан хаалт, энэ нь үнэн.
  */
-export async function getSession(): Promise<SessionClaims | null> {
+export const getSession = cache(async (): Promise<SessionClaims | null> => {
   const jar = await cookies();
-  return verifySessionToken(jar.get(SESSION_COOKIE)?.value);
-}
+  const claims = await verifySessionToken(jar.get(SESSION_COOKIE)?.value);
+  if (!claims) return null;
+
+  const [surveyor] = await getDb()
+    .select({
+      id: surveyors.id,
+      badgeNumber: surveyors.badgeNumber,
+      role: surveyors.role,
+    })
+    .from(surveyors)
+    .where(and(eq(surveyors.id, claims.sub), eq(surveyors.isActive, true)))
+    .limit(1);
+
+  if (!surveyor) return null;
+
+  return {
+    sub: surveyor.id,
+    badge: surveyor.badgeNumber,
+    // Токенд бичигдсэн эрх биш, ОДООГИЙН эрх.
+    role: surveyor.role,
+  };
+});
 
 /** Хүсэлт ирсэн IP — Vercel-ийн proxy `x-forwarded-for` тавьдаг. */
 export async function getClientIp(): Promise<string | null> {
