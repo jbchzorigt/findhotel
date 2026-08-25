@@ -243,5 +243,8 @@ export const auditLogs = pgTable(
   (t) => [
     index("audit_log_actor_created_idx").on(t.actorId, t.createdAt.desc()),
     index("audit_log_subject_idx").on(t.subjectId),
+    // Нэвтрэлтийн хязгаарлалт (throttle) энэ индекс дээр амьдарна:
+    // "сүүлийн 5 минутад action='auth.login.failed' байсан мөрүүд".
+    index("audit_log_action_created_idx").on(t.action, t.createdAt.desc()),
   ],
 );

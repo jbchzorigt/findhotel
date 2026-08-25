@@ -8,6 +8,13 @@
       "when": 1787625268917,
       "tag": "0000_amazing_scrambler",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787629012652,
+      "tag": "0001_panoramic_leo",
+      "breakpoints": true
     }
   ]
 }

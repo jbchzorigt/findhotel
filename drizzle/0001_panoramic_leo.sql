@@ -1,0 +1,1 @@
+CREATE INDEX "audit_log_action_created_idx" ON "audit_log" USING btree ("action","created_at" DESC NULLS LAST);
