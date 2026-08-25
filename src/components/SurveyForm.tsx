@@ -511,6 +511,7 @@ export function SurveyForm({ surveyorName }: { surveyorName: string }) {
             id="note"
             value={note}
             onChange={(event) => setNote(event.target.value)}
+            placeholder="Хороо болон гудамжны нэр оруулна уу"
             rows={2}
             className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"
           />
